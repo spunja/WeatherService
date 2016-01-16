@@ -2,13 +2,8 @@ package com.example.shambhavipunja.weatherservice;
 
 import android.app.IntentService;
 import android.content.Intent;
-import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
-
-import com.example.model.DaoMaster;
-import com.example.model.DaoSession;
 import com.example.model.WeatherInfo;
-import com.example.model.WeatherInfoDao;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -20,7 +15,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Date;
-import java.util.List;
+
 
 /**
  * Created by shambhavipunja on 1/12/16.
@@ -30,9 +25,6 @@ public class WeatherIntentService extends IntentService {
     public static final String GET_WEATHER = "weather";
     public static final String WEATHER_DATA = "wdata";
     public static final String PREV_WEATHER_DATA = "prev_wdata";
-
-    private SQLiteDatabase db;
-    private WeatherInfoDao Dao;
 
     public WeatherIntentService() {
         super("MyService");
@@ -44,8 +36,6 @@ public class WeatherIntentService extends IntentService {
         if(GET_WEATHER.equals(action)){
 
             Info result = null;//Parcelable class
-            Info prev_result = null;
-
             try {
                 //json data from API
                 String out_data = getData("http://api.openweathermap.org/data/2.5/weather?zip=90007&units=metric&appid=5d62949ed666358c95d7442961b25c05");
@@ -61,33 +51,8 @@ public class WeatherIntentService extends IntentService {
                 result = new Info();
                 result.setTemp(temp);
                 result.setCity(city);
-
-                //Save weather data in database
-                String database_name = "weather-db";
-                initDB(database_name);
-
                 Date date = new Date(System.currentTimeMillis());
-                WeatherInfo weatherInfo = new WeatherInfo(null,date,city,temp);
-                Dao.insert(weatherInfo);
-                Log.d("DaoExample", "Inserted new weatherInfo, ID: " + weatherInfo.getId());
-
-                List<WeatherInfo> list = Dao.queryBuilder()
-                        .where(WeatherInfoDao.Properties.Id.eq(weatherInfo.getId()-1))
-                        .list();
-
-                if(list.size() > 0){
-                    WeatherInfo w = list.get(0);
-
-                    prev_result = new Info();
-                    String prev_temp = w.getTemperature();
-                    Date prev_timestamp = w.getTimestamp();
-
-                    prev_result.setTemp(prev_temp);
-                    prev_result.setTimestamp(prev_timestamp);
-
-                    Log.d("res", "time: " + prev_result.getTimestamp());
-                }
-                closeDB();
+                result.setTimestamp(date);
 
             }
             catch(JSONException e){
@@ -95,6 +60,7 @@ public class WeatherIntentService extends IntentService {
             catch (IOException e) {
             }
 
+            Info prev_result = DatabaseOpeartion(result);
             //send broadcast
             Intent bintent = new Intent();
             bintent.setAction(MainActivity.ResponseReciever.ACTION_RESP);
@@ -105,25 +71,27 @@ public class WeatherIntentService extends IntentService {
         }
     }
 
+    private Info DatabaseOpeartion(Info result){
+        DaoConnection DaoC = DaoConnection.getDaoCon(this);
 
-    //Initializing db session
-    private void initDB(String database_name){
+        //Save current session data
+        Long id = DaoC.Insert(result);
+        Log.d("DaoExample", "Inserted new weatherInfo, ID: " + id);
 
-        DaoMaster.DevOpenHelper helper = new DaoMaster.DevOpenHelper(this,database_name,null);
-        db = helper.getWritableDatabase();
+        //Retrieve prev session data
+        Info prev_result = new Info();
+        if (id >= -1) {
+            Long prev_id = id - 1;
+            prev_result= DaoC.GetRowById(prev_id);
+        }
 
-        DaoMaster daoMaster = new DaoMaster(db);
-        DaoSession daoSession = daoMaster.newSession();
-        Dao = daoSession.getWeatherInfoDao();
-    }
+        DaoC.closeDao();
+        return prev_result;
 
-    //Close db
-    private void closeDB(){
-        db.close();
     }
 
     //Get data from API return: response in string format
-    public String getData(String urls) throws IOException {
+    private String getData(String urls) throws IOException {
         InputStream is = null;
 
         try {
@@ -156,7 +124,7 @@ public class WeatherIntentService extends IntentService {
     }
 
     //Convert stream to string
-    public String readIt(InputStream stream) throws IOException {
+    private String readIt(InputStream stream) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
         StringBuilder result = new StringBuilder();
         String rLine = "";
