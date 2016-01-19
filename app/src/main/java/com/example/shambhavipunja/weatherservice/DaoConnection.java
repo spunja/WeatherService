@@ -68,7 +68,11 @@ public final class DaoConnection {
 
     //Close db
     public void closeDao(){
-        db.close();
+        if(daoSession!=null)daoSession.clear();
+        daoMaster=null;
+        if(db.isOpen())db.close();
+        helper.close();
+        daoConnection = null;
     }
 
 

@@ -25,6 +25,7 @@ public class WeatherIntentService extends IntentService {
     public static final String GET_WEATHER = "weather";
     public static final String WEATHER_DATA = "wdata";
     public static final String PREV_WEATHER_DATA = "prev_wdata";
+    DaoConnection DaoC;
 
     public WeatherIntentService() {
         super("MyService");
@@ -72,15 +73,15 @@ public class WeatherIntentService extends IntentService {
     }
 
     private Info DatabaseOpeartion(Info result){
-        DaoConnection DaoC = DaoConnection.getDaoCon(this);
+       DaoC = DaoConnection.getDaoCon(this);
 
         //Save current session data
         Long id = DaoC.Insert(result);
         Log.d("DaoExample", "Inserted new weatherInfo, ID: " + id);
 
         //Retrieve prev session data
-        Info prev_result = new Info();
-        if (id >= -1) {
+        Info prev_result = null;
+        if (id != -1) {
             Long prev_id = id - 1;
             prev_result= DaoC.GetRowById(prev_id);
         }
@@ -133,6 +134,13 @@ public class WeatherIntentService extends IntentService {
 
         }
         return result.toString();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        //DaoC.closeDao();
+
     }
 }
 
